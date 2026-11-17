@@ -1,0 +1,35 @@
+{
+  "name": "telesign-usage-dashboard",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Self-hosted dashboard for Telesign customers: spend, usage by product and country, campaigns, compliance and spending controls.",
+  "type": "module",
+  "scripts": {
+    "dev": "concurrently -n api,web -c blue,green \"node --watch --disable-warning=ExperimentalWarning server/index.js\" \"vite --config client/vite.config.js\"",
+    "build": "vite build --config client/vite.config.js",
+    "start": "node --disable-warning=ExperimentalWarning server/index.js",
+    "seed:demo": "node --disable-warning=ExperimentalWarning server/seed.js",
+    "test": "node --disable-warning=ExperimentalWarning --test tests/"
+  },
+  "engines": {
+    "node": ">=22.13"
+  },
+  "dependencies": {
+    "express": "^5.3.0",
+    "libphonenumber-js": "^1.13.16"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^6.3.0",
+    "chart.js": "^4.6.1",
+    "chartjs-chart-geo": "^4.3.6",
+    "concurrently": "^10.0.7",
+    "i18n-iso-countries": "^7.14.0",
+    "papaparse": "^5.7.1",
+    "react": "^19.3.1",
+    "react-chartjs-2": "^5.3.1",
+    "react-dom": "^19.3.1",
+    "react-router-dom": "^7.18.5",
+    "vite": "^8.3.8",
+    "world-atlas": "^2.0.2"
+  }
+}
