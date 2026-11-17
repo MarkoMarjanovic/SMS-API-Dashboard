@@ -10,7 +10,7 @@ const FIELDS = [
   { key: 'phone', label: 'Phone number', guess: /phone|msisdn|number|recipient/i, hint: 'Used to detect country if no country column' },
   { key: 'quantity', label: 'Quantity', guess: /qty|quantity|count|volume|messages|units|transactions/i, hint: 'Defaults to 1 per row' },
   { key: 'segments', label: 'Segments', guess: /segment|parts/i },
-  { key: 'cost', label: 'Cost', guess: /cost|amount|price|charge|total/i, hint: 'If missing, your rate card is used' },
+  { key: 'cost', label: 'Cost', guess: /amount|total|charge|^cost|line.?cost/i, hint: 'If missing, your rate card is used' },
   { key: 'status', label: 'Status code', guess: /status/i },
 ];
 

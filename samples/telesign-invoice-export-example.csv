@@ -1,0 +1,61 @@
+Invoice Date,Service Description,Destination Country,Billable Units,Unit Price,Amount (USD)
+2026-08-28,SMS - Outbound Messaging,United States,800,0.0109,8.72
+2026-08-28,SMS Verify,United States,320,0.0199,6.37
+2026-08-28,SMS - Outbound Messaging,Canada,9087,0.0100,90.87
+2026-08-28,SMS Verify,Canada,3635,0.0190,69.06
+2026-08-28,SMS - Outbound Messaging,United Kingdom,3403,0.0340,115.70
+2026-08-28,SMS Verify,United Kingdom,1361,0.0430,58.52
+2026-08-28,SMS - Outbound Messaging,Germany,2695,0.0720,194.04
+2026-08-28,SMS Verify,Germany,1078,0.0810,87.32
+2026-08-28,SMS - Outbound Messaging,France,7364,0.0640,471.30
+2026-08-28,SMS Verify,France,2946,0.0730,215.06
+2026-08-28,SMS - Outbound Messaging,Serbia,5594,0.0580,324.45
+2026-08-28,SMS Verify,Serbia,2238,0.0670,149.95
+2026-08-28,SMS - Outbound Messaging,Mexico,3764,0.0240,90.34
+2026-08-28,SMS Verify,Mexico,1506,0.0330,49.70
+2026-08-28,SMS - Outbound Messaging,Brazil,7568,0.0190,143.79
+2026-08-28,SMS Verify,Brazil,3027,0.0280,84.76
+2026-08-28,SMS - Outbound Messaging,India,7596,0.0042,31.90
+2026-08-28,SMS Verify,India,3038,0.0132,40.10
+2026-08-28,SMS - Outbound Messaging,Australia,5686,0.0420,238.81
+2026-08-28,SMS Verify,Australia,2274,0.0510,115.97
+2026-09-28,SMS - Outbound Messaging,United States,6961,0.0109,75.87
+2026-09-28,SMS Verify,United States,2784,0.0199,55.40
+2026-09-28,SMS - Outbound Messaging,Canada,6523,0.0100,65.23
+2026-09-28,SMS Verify,Canada,2609,0.0190,49.57
+2026-09-28,SMS - Outbound Messaging,United Kingdom,8151,0.0340,277.13
+2026-09-28,SMS Verify,United Kingdom,3260,0.0430,140.18
+2026-09-28,SMS - Outbound Messaging,Germany,2978,0.0720,214.42
+2026-09-28,SMS Verify,Germany,1191,0.0810,96.47
+2026-09-28,SMS - Outbound Messaging,France,4168,0.0640,266.75
+2026-09-28,SMS Verify,France,1667,0.0730,121.69
+2026-09-28,SMS - Outbound Messaging,Serbia,7171,0.0580,415.92
+2026-09-28,SMS Verify,Serbia,2868,0.0670,192.16
+2026-09-28,SMS - Outbound Messaging,Mexico,7082,0.0240,169.97
+2026-09-28,SMS Verify,Mexico,2833,0.0330,93.49
+2026-09-28,SMS - Outbound Messaging,Brazil,1285,0.0190,24.41
+2026-09-28,SMS Verify,Brazil,514,0.0280,14.39
+2026-09-28,SMS - Outbound Messaging,India,6955,0.0042,29.21
+2026-09-28,SMS Verify,India,2782,0.0132,36.72
+2026-09-28,SMS - Outbound Messaging,Australia,5011,0.0420,210.46
+2026-09-28,SMS Verify,Australia,2004,0.0510,102.20
+2026-10-28,SMS - Outbound Messaging,United States,9102,0.0109,99.21
+2026-10-28,SMS Verify,United States,3641,0.0199,72.46
+2026-10-28,SMS - Outbound Messaging,Canada,8067,0.0100,80.67
+2026-10-28,SMS Verify,Canada,3227,0.0190,61.31
+2026-10-28,SMS - Outbound Messaging,United Kingdom,1906,0.0340,64.80
+2026-10-28,SMS Verify,United Kingdom,762,0.0430,32.77
+2026-10-28,SMS - Outbound Messaging,Germany,5417,0.0720,390.02
+2026-10-28,SMS Verify,Germany,2167,0.0810,175.53
+2026-10-28,SMS - Outbound Messaging,France,9109,0.0640,582.98
+2026-10-28,SMS Verify,France,3644,0.0730,266.01
+2026-10-28,SMS - Outbound Messaging,Serbia,6997,0.0580,405.83
+2026-10-28,SMS Verify,Serbia,2799,0.0670,187.53
+2026-10-28,SMS - Outbound Messaging,Mexico,6594,0.0240,158.26
+2026-10-28,SMS Verify,Mexico,2638,0.0330,87.05
+2026-10-28,SMS - Outbound Messaging,Brazil,5997,0.0190,113.94
+2026-10-28,SMS Verify,Brazil,2399,0.0280,67.17
+2026-10-28,SMS - Outbound Messaging,India,9008,0.0042,37.83
+2026-10-28,SMS Verify,India,3603,0.0132,47.56
+2026-10-28,SMS - Outbound Messaging,Australia,8975,0.0420,376.95
+2026-10-28,SMS Verify,Australia,3590,0.0510,183.09

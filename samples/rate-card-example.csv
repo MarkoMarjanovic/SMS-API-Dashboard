@@ -1,0 +1,33 @@
+Country Code,Country,Product,Price per Unit (USD),Carrier Surcharge (USD)
+US,United States,SMS,0.0079,0.003
+US,United States,SMS Verify,0.0169,0.003
+US,United States,Voice Verify,0.0246,0
+CA,Canada,SMS,0.0075,0.0025
+CA,Canada,SMS Verify,0.0165,0.0025
+CA,Canada,Voice Verify,0.0240,0
+GB,United Kingdom,SMS,0.034,0
+GB,United Kingdom,SMS Verify,0.0430,0
+GB,United Kingdom,Voice Verify,0.0664,0
+DE,Germany,SMS,0.072,0
+DE,Germany,SMS Verify,0.0810,0
+DE,Germany,Voice Verify,0.1272,0
+FR,France,SMS,0.064,0
+FR,France,SMS Verify,0.0730,0
+FR,France,Voice Verify,0.1144,0
+RS,Serbia,SMS,0.058,0
+RS,Serbia,SMS Verify,0.0670,0
+RS,Serbia,Voice Verify,0.1048,0
+MX,Mexico,SMS,0.024,0
+MX,Mexico,SMS Verify,0.0330,0
+MX,Mexico,Voice Verify,0.0504,0
+BR,Brazil,SMS,0.019,0
+BR,Brazil,SMS Verify,0.0280,0
+BR,Brazil,Voice Verify,0.0424,0
+IN,India,SMS,0.0042,0
+IN,India,SMS Verify,0.0132,0
+IN,India,Voice Verify,0.0187,0
+AU,Australia,SMS,0.042,0
+AU,Australia,SMS Verify,0.0510,0
+AU,Australia,Voice Verify,0.0792,0
+*,Default,SMS,0.05,0
+*,Default,Phone ID,0.0055,0

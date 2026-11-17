@@ -67,7 +67,7 @@ function RateCard() {
       {importing && (
         <Modal wide title="Import rate card" onClose={() => setImporting(false)}>
           <CsvImport busy={busy} submitLabel="Import" fields={[
-            { key: 'country', label: 'Country (ISO code)', required: true, guess: /country|iso|dest/i, hint: 'Two-letter code like US, or * for default' },
+            { key: 'country', label: 'Country (ISO code)', required: true, guess: /country|iso|dest/i, hint: 'ISO code (US) or name (United States); * = default' },
             { key: 'price', label: 'Price', required: true, guess: /price|rate|cost/i },
             { key: 'product', label: 'Product', guess: /product|service|type/i, hint: `If missing, rows are imported as ${productLabel(product)}` },
             { key: 'carrier_fee', label: 'Carrier fee', guess: /carrier|surcharge|fee/i },

@@ -1,5 +1,20 @@
 import { parsePhoneNumberFromString } from 'libphonenumber-js';
+import countries from 'i18n-iso-countries';
+import en from 'i18n-iso-countries/langs/en.json' with { type: 'json' };
 import { all } from './db.js';
+
+countries.registerLocale(en);
+const EXTRA_NAMES = { 'VIET NAM': 'VN', 'UK': 'GB', 'GREAT BRITAIN': 'GB', 'KOREA': 'KR', 'HOLLAND': 'NL' };
+
+/** Normalise "US", "us", "United States", "USA" … to an ISO alpha-2 code. Keeps "*" (rate card default). */
+export function toIsoCountry(input) {
+  const s = String(input ?? '').trim();
+  if (!s) return null;
+  if (s === '*') return '*';
+  if (/^[A-Za-z]{2}$/.test(s)) return s.toUpperCase();
+  if (/^[A-Za-z]{3}$/.test(s)) return countries.alpha3ToAlpha2(s.toUpperCase()) || EXTRA_NAMES[s.toUpperCase()] || null;
+  return countries.getAlpha2Code(s, 'en') || EXTRA_NAMES[s.toUpperCase()] || null;
+}
 
 /** Normalize to E.164 ("+14155550123") and detect the ISO country. Returns null if invalid. */
 export function parsePhone(input, defaultCountry) {

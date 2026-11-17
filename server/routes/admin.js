@@ -3,7 +3,7 @@ import crypto from 'node:crypto';
 import { db, all, get, run, tx, now, audit, getSettings, setSettings } from '../db.js';
 import { requireAdmin, hashPassword, createApiToken } from '../auth.js';
 import { sendCsv, int, ah } from '../util.js';
-import { invalidateRates, fixedCostsForMonth, round, parsePhone } from '../pricing.js';
+import { invalidateRates, fixedCostsForMonth, round, parsePhone, toIsoCountry } from '../pricing.js';
 import { spendSince, evaluateAlerts } from '../spend.js';
 import { seedDemo, clearOperationalData } from '../demo.js';
 import { createClient, TelesignError } from '../telesign.js';
@@ -23,7 +23,7 @@ r.put('/rates', requireAdmin, (req, res) => {
       ON CONFLICT(product, country) DO UPDATE SET price = excluded.price, carrier_fee = excluded.carrier_fee, note = excluded.note, updated_at = excluded.updated_at`);
     for (const x of rows) {
       const product = PRODUCT_KEYS.includes(x.product) ? x.product : guessProduct(x.product);
-      const country = String(x.country || '').trim().toUpperCase();
+      const country = toIsoCountry(x.country);
       const price = Number(String(x.price).replace(/[^0-9.\-]/g, ''));
       if (!country || !Number.isFinite(price)) { skipped++; continue; }
       stmt.run(product, country, price, Number(x.carrier_fee) || 0, x.note || null, now());
@@ -189,7 +189,7 @@ r.post('/import/usage', requireAdmin, (req, res) => {
       if (Number.isNaN(d.getTime())) { stats.skipped++; continue; }
       const product = PRODUCT_KEYS.includes(x.product) ? x.product : guessProduct(x.product);
       const p = x.phone ? parsePhone(x.phone) : null;
-      let country = String(x.country || p?.country || '').trim().toUpperCase().slice(0, 2) || null;
+      const country = (x.country ? toIsoCountry(x.country) : null) || p?.country || null;
       const qty = Math.max(int(String(x.quantity ?? '1').replace(/[^0-9.]/g, ''), 1), 0);
       const segments = int(x.segments, qty);
       const rawCost = x.cost === undefined || x.cost === '' ? NaN : Number(String(x.cost).replace(/[^0-9.\-]/g, ''));
