@@ -10,7 +10,8 @@ export function parsePhone(input, defaultCountry) {
   if (/^\d{8,15}$/.test(s) && !defaultCountry) s = '+' + s;
   const p = parsePhoneNumberFromString(s, defaultCountry);
   if (!p || !p.isPossible()) return null;
-  return { e164: p.number, country: p.country || null };
+  // Fictional / unassigned ranges (e.g. UK +44 7700 900xxx) have no single country; fall back to the calling code's main country.
+  return { e164: p.number, country: p.country || p.getPossibleCountries?.()[0] || null };
 }
 
 let cache = null;

@@ -251,7 +251,10 @@ export function seedDemo() {
   const dayOfMonth = today.getUTCDate() - 1 + today.getUTCHours() / 24 || 1;
   const daysInMonth = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() + 1, 0)).getUTCDate();
   const projected = (mtd / dayOfMonth) * daysInMonth;
-  setSettings({ demo_mode: '1', monthly_budget: Math.ceil((projected * 0.92) / 50) * 50, daily_budget: Math.ceil(((mtd / dayOfMonth) * 1.8) / 5) * 5, company_name: 'Northwind Retail (demo)' });
+  const todaySpend = get('SELECT SUM(cost) AS s FROM transactions WHERE created_at >= ?', today.toISOString().slice(0, 10)).s || 0;
+  // Daily limit leaves headroom above today's (attack-inflated) spend so demo sends still go through.
+  const daily = Math.max((mtd / dayOfMonth) * 1.8, todaySpend * 1.6);
+  setSettings({ demo_mode: '1', monthly_budget: Math.ceil((projected * 0.92) / 50) * 50, daily_budget: Math.ceil(daily / 5) * 5, company_name: 'Northwind Retail (demo)' });
   run('INSERT OR REPLACE INTO country_caps(country, monthly_cap) VALUES(?, ?)', 'NG', 25);
   run('INSERT OR REPLACE INTO country_caps(country, monthly_cap) VALUES(?, ?)', 'IN', 40);
   evaluateAlerts();

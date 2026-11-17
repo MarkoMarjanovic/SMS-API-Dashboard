@@ -9,7 +9,7 @@
     "build": "vite build --config client/vite.config.js",
     "start": "node --disable-warning=ExperimentalWarning server/index.js",
     "seed:demo": "node --disable-warning=ExperimentalWarning server/seed.js",
-    "test": "node --disable-warning=ExperimentalWarning --test tests/"
+    "test": "node --disable-warning=ExperimentalWarning --test tests/*.test.js"
   },
   "engines": {
     "node": ">=22.13"
