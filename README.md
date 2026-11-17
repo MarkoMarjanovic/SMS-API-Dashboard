@@ -2,7 +2,7 @@
 
 A self-hosted dashboard for **any Telesign customer** to track spend and usage across Telesign products (SMS, SMS Verify, Voice Verify, Voice, Phone ID, Intelligence, WhatsApp), see which countries the money goes to, and run SMS campaigns with consent, opt-out handling and spending controls.
 
-Everything (data, credentials, code) runs on infrastructure you own. There is one Node.js process and a single SQLite file, with no external database or SaaS dependency.
+Everything (data, credentials, code) stays in accounts you own: the code in your repo, the data in your Postgres database (Neon in production, or embedded PGlite locally).
 
 ## Features
 
@@ -26,7 +26,7 @@ Everything (data, credentials, code) runs on infrastructure you own. There is on
 
 ## Quick start
 
-Requires **Node.js 22.13+** (uses the built-in `node:sqlite`).
+Requires **Node.js 20+**. No database server needed locally (embedded Postgres); set `DATABASE_URL` to use Neon or any Postgres.
 
 ```bash
 npm install
@@ -51,13 +51,35 @@ Tests: `npm test`.
 
 See [docs/WALKTHROUGH.md](docs/WALKTHROUGH.md) for the operator guide.
 
+## Database
+
+Postgres everywhere:
+
+- **Production / Vercel:** set `DATABASE_URL` (e.g. a [Neon](https://neon.com) connection string, pooled endpoint).
+- **Local / tests:** with no `DATABASE_URL`, an embedded Postgres ([PGlite](https://pglite.dev)) is stored in `data/pglite`. Nothing to install.
+
+The schema is created automatically on first start. `npm run seed:demo` loads demo data into whichever database is configured.
+
 ## Hosting
 
-The app is one long-running process (it runs a scheduler for campaigns, alerts and status polling) plus a SQLite file, so it needs a host with an always-on process and a persistent disk. **Render, Railway or Fly.io** work out of the box with the included [Dockerfile](Dockerfile); serverless platforms such as Vercel do not (no background process, no persistent filesystem).
+### Vercel + Neon (recommended)
 
-**Render**: [render.yaml](render.yaml) is a ready Blueprint. Set `ADMIN_EMAIL` / `ADMIN_PASSWORD` (creates the admin on first start and closes the public setup page), `PUBLIC_URL`, `TELESIGN_CUSTOMER_ID`, `TELESIGN_API_KEY`, `TRUST_PROXY=1`.
+[vercel.json](vercel.json) serves the built UI from Vercel's CDN and every `/api/*` request through one serverless function ([api/index.js](api/index.js)).
 
-> Render **free** plan: no persistent disk (the database resets on every restart/deploy, so `SEED_DEMO=1` reloads demo data) and the service sleeps after 15 minutes without traffic (scheduled campaigns and alerts pause while asleep). Fine for evaluation; for production use the Starter plan with a 1 GB disk mounted at `/app/data`.
+1. Import the GitHub repo in Vercel (framework preset: *Other*; build settings come from `vercel.json`).
+2. Environment variables: `DATABASE_URL` (Neon, pooled), `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `TELESIGN_CUSTOMER_ID`, `TELESIGN_API_KEY`, `PUBLIC_URL` (the Vercel URL), `CRON_SECRET` (long random string).
+3. Deploy. Load demo data once with `npm run seed:demo` locally against the same `DATABASE_URL`, or start empty.
+
+**Background work on serverless.** There is no always-on process, so campaign sending, delivery-status polling and alert checks run in short idempotent *ticks*:
+- while anyone has the dashboard open, it triggers a tick every 20 s;
+- Vercel Cron calls `/api/cron/tick` (the Hobby plan allows **once a day**);
+- for unattended campaigns and timely alerts, point a free external scheduler (e.g. cron-job.org) at `https://<app>/api/cron/tick?key=<CRON_SECRET>` every minute.
+
+Ticks are safe to run concurrently: campaign send credit is time-based and queue rows are claimed with `FOR UPDATE SKIP LOCKED`, so nothing is sent twice.
+
+### Container hosts (Render, Railway, Fly.io)
+
+The [Dockerfile](Dockerfile) runs `server/index.js`, which serves the UI and runs the scheduler every 5 seconds. Set `DATABASE_URL` to keep data in Postgres; otherwise PGlite stores it under `/app/data` (mount a persistent disk). [render.yaml](render.yaml) is a Render Blueprint.
 
 **Trial Telesign accounts** can only send to phone numbers verified in the Telesign Portal; other numbers fail with "has not been verified for this trial account" (logged as failed, cost 0).
 
@@ -75,19 +97,20 @@ Your Telesign invoice is the source of truth. Use the monthly report to reconcil
 
 ## Configuration (`.env`)
 
-See [.env.example](.env.example): `PORT`, `PUBLIC_URL`, `TELESIGN_CUSTOMER_ID`, `TELESIGN_API_KEY`, `TELESIGN_BASE_URL`, `DATA_DIR`.
+See [.env.example](.env.example): `DATABASE_URL`, `PUBLIC_URL`, `TELESIGN_CUSTOMER_ID`, `TELESIGN_API_KEY`, `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `CRON_SECRET`, `TRUST_PROXY`, `PORT`.
 
 ## Security notes
 
 - Passwords hashed with scrypt; sessions are HttpOnly SameSite cookies (Secure when `PUBLIC_URL` is https); login rate limiting.
 - API tokens are stored hashed and shown once; revocable.
 - The Telesign API key is never sent back to the browser (masked).
-- Run behind a TLS-terminating reverse proxy. Back up `data/dashboard.db`.
+- Database connections use TLS with certificate verification. Neon keeps point-in-time backups; for PGlite back up `data/pglite`.
 
 ## Project layout
 
 ```
-server/        Express API, scheduler, Telesign client, pricing, spending controls, demo data
+api/           Vercel serverless entry point
+server/        Express app (app.js), local server (index.js), Postgres layer (db.js), scheduler ticks, Telesign client, pricing, controls, demo data
   routes/      auth, analytics, messaging (log/campaigns/contacts/inbox), admin, public (gateway + callbacks)
 shared/        Code used by server and browser: SMS segment math, products, status codes
 client/        React (Vite) UI: pages/, components/

@@ -176,7 +176,7 @@ function Data() {
       </div>
       <div className="card stack">
         <h2>Your data</h2>
-        <p className="sub">Everything lives in a single SQLite file (data/dashboard.db) on your server. Back it up like any other database file. Exports are available on the Message log, Contacts and Reports pages.</p>
+        <p className="sub">Everything lives in your Postgres database (Neon in production, or the embedded database in data/pglite when running locally). Exports are available on the Message log, Contacts and Reports pages.</p>
       </div>
     </div>
   );

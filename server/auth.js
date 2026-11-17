@@ -17,16 +17,16 @@ export function verifyPassword(password, stored) {
   return crypto.timingSafeEqual(test, Buffer.from(hash, 'hex'));
 }
 
-export function createSession(userId) {
+export async function createSession(userId) {
   const token = crypto.randomBytes(32).toString('hex');
   const expires = new Date(Date.now() + SESSION_DAYS * 864e5).toISOString();
-  run('INSERT INTO sessions(token, user_id, expires_at) VALUES(?,?,?)', sha256(token), userId, expires);
-  run('DELETE FROM sessions WHERE expires_at < ?', now());
+  await run('INSERT INTO sessions(token, user_id, expires_at) VALUES(?,?,?)', sha256(token), userId, expires);
+  await run('DELETE FROM sessions WHERE expires_at < ?', now());
   return { token, expires };
 }
 
-export function destroySession(token) {
-  if (token) run('DELETE FROM sessions WHERE token = ?', sha256(token));
+export async function destroySession(token) {
+  if (token) await run('DELETE FROM sessions WHERE token = ?', sha256(token));
 }
 
 function parseCookies(header = '') {
@@ -39,7 +39,7 @@ function parseCookies(header = '') {
 }
 
 export function sessionCookie(res, token, expires) {
-  const secure = (process.env.PUBLIC_URL || '').startsWith('https') ? '; Secure' : '';
+  const secure = (process.env.PUBLIC_URL || '').startsWith('https') || process.env.VERCEL ? '; Secure' : '';
   res.setHeader('Set-Cookie', `sid=${token}; HttpOnly; SameSite=Lax; Path=/; Expires=${new Date(expires).toUTCString()}${secure}`);
 }
 
@@ -52,15 +52,19 @@ export function getToken(req) {
 }
 
 /** Attach req.user if a valid session cookie is present. */
-export function loadUser(req, _res, next) {
-  const token = getToken(req);
-  if (token) {
-    const row = get(
-      `SELECT u.id, u.email, u.name, u.role FROM sessions s JOIN users u ON u.id = s.user_id
-       WHERE s.token = ? AND s.expires_at > ?`, sha256(token), now());
-    if (row) req.user = row;
+export async function loadUser(req, _res, next) {
+  try {
+    const token = getToken(req);
+    if (token) {
+      const row = await get(
+        `SELECT u.id, u.email, u.name, u.role FROM sessions s JOIN users u ON u.id = s.user_id
+         WHERE s.token = ? AND s.expires_at > ?`, sha256(token), now());
+      if (row) req.user = row;
+    }
+    next();
+  } catch (e) {
+    next(e);
   }
-  next();
 }
 
 export function requireUser(req, res, next) {
@@ -76,18 +80,22 @@ export function requireAdmin(req, res, next) {
 }
 
 // ---- API tokens for the gateway (customer's own systems sending through the dashboard) ----
-export function createApiToken(name) {
+export async function createApiToken(name) {
   const raw = 'tsd_' + crypto.randomBytes(24).toString('hex');
-  run('INSERT INTO api_tokens(name, token_hash, prefix, created_at) VALUES(?,?,?,?)', name, sha256(raw), raw.slice(0, 10), now());
+  await run('INSERT INTO api_tokens(name, token_hash, prefix, created_at) VALUES(?,?,?,?)', name, sha256(raw), raw.slice(0, 10), now());
   return raw;
 }
 
-export function requireApiToken(req, res, next) {
-  const h = req.headers.authorization || '';
-  const raw = h.startsWith('Bearer ') ? h.slice(7).trim() : '';
-  const row = raw && get('SELECT id, name FROM api_tokens WHERE token_hash = ? AND revoked = 0', sha256(raw));
-  if (!row) return res.status(401).json({ error: 'Invalid or missing API token (Authorization: Bearer tsd_...)' });
-  run('UPDATE api_tokens SET last_used_at = ? WHERE id = ?', now(), row.id);
-  req.apiToken = row;
-  next();
+export async function requireApiToken(req, res, next) {
+  try {
+    const h = req.headers.authorization || '';
+    const raw = h.startsWith('Bearer ') ? h.slice(7).trim() : '';
+    const row = raw && (await get('SELECT id, name FROM api_tokens WHERE token_hash = ? AND revoked = 0', sha256(raw)));
+    if (!row) return res.status(401).json({ error: 'Invalid or missing API token (Authorization: Bearer tsd_...)' });
+    await run('UPDATE api_tokens SET last_used_at = ? WHERE id = ?', now(), row.id);
+    req.apiToken = row;
+    next();
+  } catch (e) {
+    next(e);
+  }
 }

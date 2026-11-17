@@ -67,6 +67,15 @@ export default function App() {
     return () => clearInterval(t);
   }, [state?.user, loc.pathname, refreshCounts]);
   useEffect(() => setMenu(false), [loc.pathname]);
+  // On serverless hosting there is no always-on process: while the dashboard is open it drives
+  // background work (campaign sending, delivery updates, alerts). Harmless when a server scheduler also runs.
+  useEffect(() => {
+    if (!state?.user) return;
+    const run = () => document.visibilityState === 'visible' && api.post('/tick').catch(() => {});
+    run();
+    const t = setInterval(run, 20000);
+    return () => clearInterval(t);
+  }, [state?.user]);
 
   if (!state) return null;
   if (!state.user) return <Login needsSetup={state.needsSetup} onDone={refresh} />;

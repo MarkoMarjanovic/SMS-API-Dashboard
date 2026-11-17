@@ -5,19 +5,21 @@
   "description": "Self-hosted dashboard for Telesign customers: spend, usage by product and country, campaigns, compliance and spending controls.",
   "type": "module",
   "scripts": {
-    "dev": "concurrently -n api,web -c blue,green \"node --watch --disable-warning=ExperimentalWarning server/index.js\" \"vite --config client/vite.config.js\"",
+    "dev": "concurrently -n api,web -c blue,green \"node --watch server/index.js\" \"vite --config client/vite.config.js\"",
     "build": "vite build --config client/vite.config.js",
-    "start": "node --disable-warning=ExperimentalWarning server/index.js",
-    "seed:demo": "node --disable-warning=ExperimentalWarning server/seed.js",
-    "test": "node --disable-warning=ExperimentalWarning --test tests/*.test.js"
+    "start": "node server/index.js",
+    "seed:demo": "node server/seed.js",
+    "test": "node --test tests/*.test.js"
   },
   "engines": {
-    "node": ">=22.13"
+    "node": ">=20"
   },
   "dependencies": {
+    "@electric-sql/pglite": "^0.5.16",
     "express": "^5.3.0",
     "i18n-iso-countries": "^7.14.0",
-    "libphonenumber-js": "^1.13.16"
+    "libphonenumber-js": "^1.13.16",
+    "pg": "^8.23.1"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^6.3.0",

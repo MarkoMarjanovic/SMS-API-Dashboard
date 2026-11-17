@@ -2,12 +2,12 @@ import { Router } from 'express';
 import { all, get, getSettings } from '../db.js';
 import { dateRange, txFilters } from '../util.js';
 import { fixedCostsForMonth, round } from '../pricing.js';
+import { NOT_BLOCKED } from '../spend.js';
 import { describeStatus, STATUS_ADVICE } from '../../shared/statusCodes.js';
 
 const r = Router();
-const NOT_BLOCKED = "status_kind IS NOT 'blocked'";
 
-function totals(q) {
+async function totals(q) {
   const f = txFilters(q);
   return get(
     `SELECT COALESCE(SUM(CASE WHEN ${NOT_BLOCKED} THEN cost END),0) AS spend,
@@ -35,31 +35,32 @@ function derive(t) {
   };
 }
 
-r.get('/overview', (req, res) => {
-  const s = getSettings();
+r.get('/overview', async (req, res) => {
+  const s = await getSettings();
   const range = dateRange(req.query);
   const prevTo = new Date(Date.parse(range.from) - 864e5).toISOString().slice(0, 10);
   const prevFrom = new Date(Date.parse(range.from) - range.days * 864e5).toISOString().slice(0, 10);
-  const current = derive(totals(req.query));
-  const previous = derive(totals({ ...req.query, from: prevFrom, to: prevTo }));
-
   const nowD = new Date();
   const ym = nowD.toISOString().slice(0, 7);
-  const mtd = get(`SELECT COALESCE(SUM(cost),0) AS s FROM transactions WHERE created_at >= ? AND ${NOT_BLOCKED}`, ym + '-01').s;
-  const today = get(`SELECT COALESCE(SUM(cost),0) AS s FROM transactions WHERE created_at >= ? AND ${NOT_BLOCKED}`, nowD.toISOString().slice(0, 10)).s;
+  const [cur, prev, mtd, today, fixed, unread, openAlerts] = await Promise.all([
+    totals(req.query), totals({ ...req.query, from: prevFrom, to: prevTo }),
+    get(`SELECT COALESCE(SUM(cost),0) AS s FROM transactions WHERE created_at >= ? AND ${NOT_BLOCKED}`, ym + '-01'),
+    get(`SELECT COALESCE(SUM(cost),0) AS s FROM transactions WHERE created_at >= ? AND ${NOT_BLOCKED}`, nowD.toISOString().slice(0, 10)),
+    fixedCostsForMonth(ym),
+    get('SELECT COUNT(*) AS n FROM inbound WHERE read = 0'),
+    get('SELECT COUNT(*) AS n FROM alerts WHERE acknowledged = 0'),
+  ]);
   const daysInMonth = new Date(Date.UTC(nowD.getUTCFullYear(), nowD.getUTCMonth() + 1, 0)).getUTCDate();
   const elapsed = Math.max(nowD.getUTCDate() - 1 + (nowD.getUTCHours() * 60 + nowD.getUTCMinutes()) / 1440, 0.5);
-  const fixed = fixedCostsForMonth(ym);
-
   res.json({
     range: { ...range, prevFrom, prevTo },
-    current, previous,
+    current: derive(cur), previous: derive(prev),
     month: {
-      month: ym, spend: round(mtd, 2), today: round(today, 2), budget: Number(s.monthly_budget) || 0, daily_budget: Number(s.daily_budget) || 0,
-      forecast: round((mtd / elapsed) * daysInMonth, 2), fixed: fixed.total, days_in_month: daysInMonth, elapsed_days: round(elapsed, 2),
+      month: ym, spend: round(mtd.s, 2), today: round(today.s, 2), budget: Number(s.monthly_budget) || 0, daily_budget: Number(s.daily_budget) || 0,
+      forecast: round((mtd.s / elapsed) * daysInMonth, 2), fixed: fixed.total, days_in_month: daysInMonth, elapsed_days: round(elapsed, 2),
     },
-    unread_replies: get('SELECT COUNT(*) AS n FROM inbound WHERE read = 0').n,
-    open_alerts: get('SELECT COUNT(*) AS n FROM alerts WHERE acknowledged = 0').n,
+    unread_replies: unread.n,
+    open_alerts: openAlerts.n,
     currency: s.currency,
   });
 });
@@ -67,7 +68,7 @@ r.get('/overview', (req, res) => {
 function grouping(q, days) {
   const g = q.group || (days > 120 ? 'week' : 'day');
   if (g === 'month') return { g, expr: 'substr(created_at, 1, 7)' };
-  if (g === 'week') return { g, expr: "date(substr(created_at,1,10), '-' || ((CAST(strftime('%w', substr(created_at,1,10)) AS INTEGER) + 6) % 7) || ' days')" };
+  if (g === 'week') return { g, expr: "to_char(date_trunc('week', substr(created_at, 1, 10)::date), 'YYYY-MM-DD')" };
   return { g: 'day', expr: 'substr(created_at, 1, 10)' };
 }
 
@@ -90,17 +91,17 @@ function periods(range, g) {
   return out;
 }
 
-/** Time series by product: { periods, group, series: { product: { cost: [], units: [] } } } */
-r.get('/timeseries', (req, res) => {
+/** Time series by product (or country): { periods, group, series: { key: { cost: [], units: [] } } } */
+r.get('/timeseries', async (req, res) => {
   const range = dateRange(req.query);
   const { g, expr } = grouping(req.query, range.days);
   const f = txFilters(req.query);
   const by = req.query.by === 'country' ? 'country' : 'product';
-  const rows = all(
+  const rows = await all(
     `SELECT ${expr} AS period, ${by} AS k, SUM(cost) AS cost, SUM(units) AS units,
        SUM(CASE WHEN status_kind = 'delivered' THEN units ELSE 0 END) AS delivered,
        SUM(CASE WHEN status_kind = 'failed' THEN units ELSE 0 END) AS failed
-     FROM transactions ${f.sql} ${f.sql ? 'AND' : 'WHERE'} ${NOT_BLOCKED} GROUP BY period, k`, ...f.params);
+     FROM transactions ${f.sql} AND ${NOT_BLOCKED} GROUP BY 1, 2`, ...f.params);
   const ps = periods(range, g);
   const idx = new Map(ps.map((p, i) => [p, i]));
   const series = {};
@@ -117,10 +118,10 @@ r.get('/timeseries', (req, res) => {
   res.json({ group: g, periods: ps, series });
 });
 
-r.get('/countries', (req, res) => {
+r.get('/countries', async (req, res) => {
   const f = txFilters(req.query);
-  const rows = all(
-    `SELECT COALESCE(country, '??') AS country,
+  const [rows, byProduct] = await Promise.all([
+    all(`SELECT COALESCE(country, '??') AS country,
        SUM(CASE WHEN ${NOT_BLOCKED} THEN units ELSE 0 END) AS units,
        SUM(CASE WHEN product = 'sms' AND ${NOT_BLOCKED} THEN segments ELSE 0 END) AS segments,
        SUM(CASE WHEN ${NOT_BLOCKED} THEN cost ELSE 0 END) AS cost,
@@ -129,12 +130,12 @@ r.get('/countries', (req, res) => {
        SUM(CASE WHEN status_kind = 'blocked' THEN units ELSE 0 END) AS blocked,
        SUM(CASE WHEN product LIKE 'verify_%' AND verified IS NOT NULL THEN 1 ELSE 0 END) AS verify_n,
        SUM(CASE WHEN product LIKE 'verify_%' AND verified = 1 THEN 1 ELSE 0 END) AS verify_ok
-     FROM transactions ${f.sql} GROUP BY country ORDER BY cost DESC`, ...f.params);
-  const byProduct = all(
-    `SELECT COALESCE(country, '??') AS country, product, SUM(cost) AS cost, SUM(units) AS units
-     FROM transactions ${f.sql} ${f.sql ? 'AND' : 'WHERE'} ${NOT_BLOCKED} GROUP BY country, product`, ...f.params);
+     FROM transactions ${f.sql} GROUP BY 1 ORDER BY cost DESC`, ...f.params),
+    all(`SELECT COALESCE(country, '??') AS country, product, SUM(cost) AS cost, SUM(units) AS units
+     FROM transactions ${f.sql} AND ${NOT_BLOCKED} GROUP BY 1, 2`, ...f.params),
+  ]);
   const map = new Map(rows.map((x) => [x.country, { ...x, products: {} }]));
-  for (const b of byProduct) map.get(b.country) && (map.get(b.country).products[b.product] = { cost: round(b.cost, 4), units: b.units });
+  for (const b of byProduct) if (map.get(b.country)) map.get(b.country).products[b.product] = { cost: round(b.cost, 4), units: b.units };
   res.json([...map.values()].map((x) => ({
     ...x, cost: round(x.cost, 4),
     delivery_rate: x.delivered + x.failed ? x.delivered / (x.delivered + x.failed) : null,
@@ -142,9 +143,9 @@ r.get('/countries', (req, res) => {
   })));
 });
 
-r.get('/products', (req, res) => {
+r.get('/products', async (req, res) => {
   const f = txFilters(req.query);
-  const rows = all(
+  const rows = await all(
     `SELECT product, SUM(CASE WHEN ${NOT_BLOCKED} THEN units ELSE 0 END) AS units, SUM(CASE WHEN ${NOT_BLOCKED} THEN segments ELSE 0 END) AS segments,
        SUM(CASE WHEN ${NOT_BLOCKED} THEN cost ELSE 0 END) AS cost,
        SUM(CASE WHEN status_kind = 'delivered' THEN units ELSE 0 END) AS delivered,
@@ -157,27 +158,27 @@ r.get('/products', (req, res) => {
 });
 
 /** Failure / status code breakdown. */
-r.get('/statuses', (req, res) => {
+r.get('/statuses', async (req, res) => {
   const f = txFilters(req.query);
-  const rows = all(
-    `SELECT status_code AS code, status_kind AS kind, COUNT(*) AS n, SUM(units) AS units, GROUP_CONCAT(DISTINCT country) AS countries
-     FROM transactions ${f.sql} ${f.sql ? 'AND' : 'WHERE'} status_code IS NOT NULL AND source != 'import'
+  const rows = await all(
+    `SELECT status_code AS code, MIN(status_kind) AS kind, COUNT(*) AS n, SUM(units) AS units, string_agg(DISTINCT country, ',') AS countries
+     FROM transactions ${f.sql} AND status_code IS NOT NULL AND source != 'import'
      GROUP BY status_code ORDER BY n DESC`, ...f.params);
   res.json(rows.map((x) => ({ ...x, text: describeStatus(x.code).text, advice: STATUS_ADVICE[x.code] || null,
     countries: (x.countries || '').split(',').filter(Boolean).slice(0, 8) })));
 });
 
 /** Verify health per country: conversion over 24h / 7d / range — the main SMS pumping signal. */
-r.get('/verify', (req, res) => {
+r.get('/verify', async (req, res) => {
   const f = txFilters({ ...req.query, product: 'verify_sms,verify_voice' });
   const d1 = new Date(Date.now() - 864e5).toISOString();
   const d7 = new Date(Date.now() - 7 * 864e5).toISOString();
-  const rows = all(
+  const rows = await all(
     `SELECT COALESCE(country,'??') AS country, COUNT(*) AS n, SUM(CASE WHEN verified = 1 THEN 1 ELSE 0 END) AS ok, SUM(cost) AS cost,
        SUM(CASE WHEN created_at >= ? THEN 1 ELSE 0 END) AS n24, SUM(CASE WHEN created_at >= ? AND verified = 1 THEN 1 ELSE 0 END) AS ok24,
        SUM(CASE WHEN created_at >= ? THEN 1 ELSE 0 END) AS n7, SUM(CASE WHEN created_at >= ? AND verified = 1 THEN 1 ELSE 0 END) AS ok7
-     FROM transactions ${f.sql} AND verified IS NOT NULL GROUP BY country ORDER BY n DESC`, d1, d1, d7, d7, ...f.params);
-  const threshold = Number(getSettings().verify_conversion_alert) || 50;
+     FROM transactions ${f.sql} AND verified IS NOT NULL GROUP BY 1 ORDER BY n DESC`, d1, d1, d7, d7, ...f.params);
+  const threshold = Number((await getSettings()).verify_conversion_alert) || 50;
   res.json({
     threshold,
     rows: rows.map((x) => {
@@ -192,16 +193,17 @@ r.get('/verify', (req, res) => {
   });
 });
 
-r.get('/country/:cc', (req, res) => {
+r.get('/country/:cc', async (req, res) => {
   const cc = req.params.cc.toUpperCase();
   const f = txFilters({ ...req.query, country: cc });
-  const products = all(
-    `SELECT product, SUM(units) AS units, SUM(segments) AS segments, SUM(cost) AS cost,
+  const [products, rates, cap, s] = await Promise.all([
+    all(`SELECT product, SUM(units) AS units, SUM(segments) AS segments, SUM(cost) AS cost,
        SUM(CASE WHEN status_kind='delivered' THEN units ELSE 0 END) AS delivered, SUM(CASE WHEN status_kind='failed' THEN units ELSE 0 END) AS failed
-     FROM transactions ${f.sql} AND ${NOT_BLOCKED} GROUP BY product ORDER BY cost DESC`, ...f.params);
-  const rates = all('SELECT product, price, carrier_fee FROM rates WHERE country = ? OR country = \'*\' ORDER BY country = \'*\'', cc);
-  const cap = get('SELECT monthly_cap FROM country_caps WHERE country = ?', cc);
-  const s = getSettings();
+     FROM transactions ${f.sql} AND ${NOT_BLOCKED} GROUP BY product ORDER BY cost DESC`, ...f.params),
+    all("SELECT product, price, carrier_fee FROM rates WHERE country = ? OR country = '*' ORDER BY country = '*'", cc),
+    get('SELECT monthly_cap FROM country_caps WHERE country = ?', cc),
+    getSettings(),
+  ]);
   res.json({ country: cc, products, rates, cap: cap?.monthly_cap ?? null,
     blocked: String(s.blocked_countries).toUpperCase().split(',').map((x) => x.trim()).includes(cc) });
 });

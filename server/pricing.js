@@ -29,28 +29,32 @@ export function parsePhone(input, defaultCountry) {
   return { e164: p.number, country: p.country || p.getPossibleCountries?.()[0] || null };
 }
 
+// Rate card cache. Short TTL because serverless instances can't see each other's invalidations.
 let cache = null;
+let cachedAt = 0;
 export function invalidateRates() { cache = null; }
 
-function rateMap() {
-  if (!cache) {
-    cache = new Map();
-    for (const r of all('SELECT product, country, price, carrier_fee FROM rates')) cache.set(`${r.product}|${r.country}`, r);
+async function rateMap() {
+  if (!cache || Date.now() - cachedAt > 30000) {
+    const m = new Map();
+    for (const r of await all('SELECT product, country, price, carrier_fee FROM rates')) m.set(`${r.product}|${r.country}`, r);
+    cache = m;
+    cachedAt = Date.now();
   }
   return cache;
 }
 
 /** Price per unit (incl. carrier pass-through fee) for a product/country; falls back to the '*' default row. */
-export function unitPrice(product, country) {
-  const m = rateMap();
+export async function unitPrice(product, country) {
+  const m = await rateMap();
   const r = m.get(`${product}|${country}`) || m.get(`${product}|*`);
   if (!r) return { price: 0, carrierFee: 0, total: 0, found: false };
   return { price: r.price, carrierFee: r.carrier_fee, total: r.price + r.carrier_fee, found: true, isDefault: r.country === '*' };
 }
 
 /** Estimated cost: SMS is billed per segment, other products per unit. */
-export function estimateCost(product, country, { segments = 1, units = 1 } = {}) {
-  const { total } = unitPrice(product, country);
+export async function estimateCost(product, country, { segments = 1, units = 1 } = {}) {
+  const { total } = await unitPrice(product, country);
   const qty = product === 'sms' || product === 'whatsapp' ? segments : units;
   return round(total * qty);
 }
@@ -58,13 +62,13 @@ export function estimateCost(product, country, { segments = 1, units = 1 } = {})
 export const round = (n, d = 5) => Math.round(n * 10 ** d) / 10 ** d;
 
 /** Fixed costs attributable to a calendar month (YYYY-MM). Annual costs are spread over 12 months. */
-export function fixedCostsForMonth(ym) {
+export async function fixedCostsForMonth(ym) {
   const monthStart = `${ym}-01`;
   const [y, m] = ym.split('-').map(Number);
   const monthEnd = new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10);
   let total = 0;
   const items = [];
-  for (const f of all('SELECT * FROM fixed_costs')) {
+  for (const f of await all('SELECT * FROM fixed_costs')) {
     if (f.start_date > monthEnd) continue;
     if (f.end_date && f.end_date < monthStart) continue;
     let amount = 0;
