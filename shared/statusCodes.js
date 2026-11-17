@@ -17,6 +17,7 @@ export const STATUS = {
   290: { text: 'Message in progress', kind: 'pending' },
   300: { text: 'Lookup completed', kind: 'delivered' },
   295: { text: 'Message queued', kind: 'pending' },
+  500: { text: 'Transaction not attempted', kind: 'failed' },
   502: { text: 'Carrier rejected the message', kind: 'failed' },
   503: { text: 'Operator not supported', kind: 'failed' },
   // Dashboard-internal codes (never sent by Telesign)

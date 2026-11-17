@@ -1,0 +1,30 @@
+# Render Blueprint. Free plan = no persistent disk and the service sleeps after 15 min idle;
+# use plan: starter + the disk block below for production.
+services:
+  - type: web
+    name: sms-api-dashboard
+    runtime: docker
+    plan: free
+    region: frankfurt
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: TRUST_PROXY
+        value: "1"
+      - key: SEED_DEMO
+        value: "1"
+      - key: PUBLIC_URL
+        sync: false
+      - key: ADMIN_EMAIL
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: TELESIGN_CUSTOMER_ID
+        sync: false
+      - key: TELESIGN_API_KEY
+        sync: false
+    # disk:            # paid plans only
+    #   name: data
+    #   mountPath: /app/data
+    #   sizeGB: 1

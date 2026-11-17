@@ -33,6 +33,26 @@ function insertTx(t) {
   return get('SELECT * FROM transactions WHERE id = ?', Number(r.lastInsertRowid));
 }
 
+/**
+ * Map a Telesign send response to transaction fields. Telesign can answer HTTP 200 with
+ * status 500 "Transaction not attempted" plus an errors[] array (e.g. unverified trial number):
+ * that is a failure and is not billed.
+ */
+function fromResponse(resp, est) {
+  const code = resp.status?.code ?? 290;
+  const errText = resp.errors?.find((e) => e.description)?.description;
+  const notAttempted = code === 500 || code >= 10000;
+  const price = extractPrice(resp);
+  return {
+    reference_id: resp.reference_id,
+    status_code: code,
+    status_kind: notAttempted ? 'failed' : undefined,
+    status_text: errText ? `${resp.status?.description || 'Error'}: ${errText}` : resp.status?.description,
+    cost: notAttempted ? 0 : price ?? est,
+    cost_source: price !== null && !notAttempted ? 'telesign' : 'rate_card',
+  };
+}
+
 const demoRef = () => 'DEMO' + crypto.randomBytes(12).toString('hex').toUpperCase();
 const demoCodes = new Map(); // reference_id -> code (demo verify only)
 
@@ -58,9 +78,7 @@ export async function sendSms({ phone, message, messageType = 'ARN', senderId, c
 
   try {
     const resp = await client(s).sendSms({ phone: parsed.e164, message, messageType, senderId: senderId || s.default_sender_id || undefined });
-    const price = extractPrice(resp);
-    return insertTx({ ...base, reference_id: resp.reference_id, status_code: resp.status?.code ?? 290,
-      status_text: resp.status?.description, cost: price ?? est, cost_source: price !== null ? 'telesign' : 'rate_card' });
+    return insertTx({ ...base, ...fromResponse(resp, est) });
   } catch (e) {
     return insertTx({ ...base, status_code: 904, status_kind: 'failed', status_text: `Telesign error: ${e.message}`, cost: 0 });
   }
@@ -88,9 +106,8 @@ export async function sendVerify({ phone, code, channel = 'sms', source = 'gatew
     const c = client(s);
     const resp = channel === 'voice' ? await c.sendVerifyCall({ phone: parsed.e164, code: verifyCode })
       : await c.sendVerifySms({ phone: parsed.e164, code: verifyCode });
-    const price = extractPrice(resp);
-    return insertTx({ ...base, reference_id: resp.reference_id, status_code: resp.status?.code ?? 290, status_text: resp.status?.description,
-      cost: price ?? est, cost_source: price !== null ? 'telesign' : 'rate_card', verified: 0 });
+    const r = fromResponse(resp, est);
+    return insertTx({ ...base, ...r, verified: r.status_kind === 'failed' ? null : 0 });
   } catch (e) {
     return insertTx({ ...base, status_code: 904, status_kind: 'failed', status_text: `Telesign error: ${e.message}`, cost: 0 });
   }

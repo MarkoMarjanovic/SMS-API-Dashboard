@@ -76,3 +76,8 @@ test('callback signature verification', () => {
   assert.ok(!m.telesign.verifyCallbackSignature(body, `TSA CID:${sig}x`, 'CID', key));
 });
 
+
+test('Telesign "not attempted" responses are failed and free', async () => {
+  const { describeStatus } = await import('../shared/statusCodes.js');
+  assert.equal(describeStatus(500).kind, 'failed');
+});

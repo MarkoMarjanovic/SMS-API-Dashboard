@@ -51,6 +51,16 @@ Tests: `npm test`.
 
 See [docs/WALKTHROUGH.md](docs/WALKTHROUGH.md) for the operator guide.
 
+## Hosting
+
+The app is one long-running process (it runs a scheduler for campaigns, alerts and status polling) plus a SQLite file, so it needs a host with an always-on process and a persistent disk. **Render, Railway or Fly.io** work out of the box with the included [Dockerfile](Dockerfile); serverless platforms such as Vercel do not (no background process, no persistent filesystem).
+
+**Render**: [render.yaml](render.yaml) is a ready Blueprint. Set `ADMIN_EMAIL` / `ADMIN_PASSWORD` (creates the admin on first start and closes the public setup page), `PUBLIC_URL`, `TELESIGN_CUSTOMER_ID`, `TELESIGN_API_KEY`, `TRUST_PROXY=1`.
+
+> Render **free** plan: no persistent disk (the database resets on every restart/deploy, so `SEED_DEMO=1` reloads demo data) and the service sleeps after 15 minutes without traffic (scheduled campaigns and alerts pause while asleep). Fine for evaluation; for production use the Starter plan with a 1 GB disk mounted at `/app/data`.
+
+**Trial Telesign accounts** can only send to phone numbers verified in the Telesign Portal; other numbers fail with "has not been verified for this trial account" (logged as failed, cost 0).
+
 ## How costs are calculated (and the limits of that)
 
 Telesign does not offer a public usage/billing API, so the dashboard builds its numbers from three sources:

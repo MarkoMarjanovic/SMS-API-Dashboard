@@ -20,9 +20,13 @@ const { default: messaging } = await import('./routes/messaging.js');
 const { default: admin } = await import('./routes/admin.js');
 const { gateway, callbacks } = await import('./routes/public.js');
 const { startScheduler } = await import('./scheduler.js');
+const { bootstrap } = await import('./bootstrap.js');
+
+bootstrap();
 
 const app = express();
-app.set('trust proxy', 'loopback');
+// Behind a hosting proxy (Render, Railway, nginx) set TRUST_PROXY=1 so req.ip is the real client (login rate limiting).
+app.set('trust proxy', process.env.TRUST_PROXY === '1' ? 1 : 'loopback');
 app.disable('x-powered-by');
 app.use(express.json({ limit: '25mb', verify: (req, _res, buf) => { req.rawBody = buf; } }));
 app.use(express.urlencoded({ extended: false }));
