@@ -15,7 +15,7 @@ async function createDriver() {
   if (process.env.DATABASE_URL) {
     const { default: pg } = await import('pg');
     // TLS is configured explicitly (full certificate verification) instead of via ?sslmode in the URL.
-    const url = new URL(process.env.DATABASE_URL);
+    const url = new URL(process.env.DATABASE_URL.trim().replace(/^["']|["']$/g, '')); // tolerate quoted values from dashboards
     const local = url.searchParams.get('sslmode') === 'disable' || /^(localhost|127\.0\.0\.1)$/.test(url.hostname);
     url.searchParams.delete('sslmode');
     const pool = new pg.Pool({
