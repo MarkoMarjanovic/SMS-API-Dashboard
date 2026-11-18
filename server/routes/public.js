@@ -81,5 +81,5 @@ cron.all('/tick', async (req, res) => {
   const secret = process.env.CRON_SECRET;
   const given = (req.headers.authorization || '').replace(/^Bearer\s+/i, '') || req.query.key || '';
   if (!secret || !safeEqual(given, secret)) return res.status(401).json({ error: 'Unauthorized' });
-  res.json({ ok: true, ...(await tick({ budgetMs: 45000 })) });
+  res.json({ ok: true, ...(await tick({ budgetMs: 240000 })) }); // function maxDuration is 300s
 });

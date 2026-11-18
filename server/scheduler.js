@@ -13,7 +13,10 @@ export function inQuietHours(s, date = new Date()) {
   return start > end ? h >= start || h < end : h >= start && h < end;
 }
 
-const MAX_BATCH = 300; // per campaign per tick
+const MAX_BATCH = 2000; // per campaign per tick (the tick's time budget is the real limit)
+// Credit may accumulate for up to this many minutes, so infrequent ticks (e.g. a 15-minute cron that keeps
+// a free-tier database within its compute allowance) still achieve the campaign's configured rate.
+const MAX_CATCHUP_MINUTES = 15;
 
 async function runCampaigns(deadline) {
   const s = await getSettings();
@@ -31,9 +34,9 @@ async function runCampaigns(deadline) {
       await run('UPDATE campaigns SET last_tick_at = ?, send_credit = 0 WHERE id = ?', tickAt, c.id);
       continue;
     }
-    // Credit accrues with elapsed time at rate_per_minute; burst capped to one minute's worth.
+    // Credit accrues with elapsed time at rate_per_minute, capped at MAX_CATCHUP_MINUTES' worth.
     const elapsed = Math.max(0, Date.parse(tickAt) - Date.parse(c.last_tick_at || c.started_at || tickAt));
-    const credit = Math.min(c.send_credit + (c.rate_per_minute * elapsed) / 60000, Math.max(c.rate_per_minute, 1));
+    const credit = Math.min(c.send_credit + (c.rate_per_minute * elapsed) / 60000, Math.max(c.rate_per_minute * MAX_CATCHUP_MINUTES, 1));
     const n = Math.min(Math.floor(credit), MAX_BATCH);
     // Optimistic lock: only one concurrent tick may advance this campaign.
     const upd = await run('UPDATE campaigns SET last_tick_at = ?, send_credit = ? WHERE id = ? AND last_tick_at IS NOT DISTINCT FROM ?',
